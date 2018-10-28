@@ -16,7 +16,7 @@ define("PEC_UPLOAD_PASSWORD_REQUIRED", true);    /*  Will PEC require a password
 define("PEC_UPLOAD_PASSWORD", "ecorp");          /*  Set this to something secure, but easy to remember. Or use "ecorp"...         */
 define("PEC_UPLOAD_MAXSIZE_GB", 16);             /*  Set the largest allowed files size in gigabytes                               */
 define("PEC_UPLOAD_MAXDIRSIZE_GB", 128);         /*  The largest your directory can get before uploads are disabled (recommended!) */
-define("PEC_SHOW_FOLDER_SIZE_MODE", 1);          /*  0 = don't show, 1=windows, 2=nix. You MUST ENABLE COM in php.ini (Windows!)   */
+define("PEC_SHOW_FOLDER_SIZE_MODE", 0);          /*  0 = don't show, 1=windows, 2=nix. You MUST ENABLE COM in php.ini (Windows!)   */
 define("PEC_SERVER_NAME", "My Server");    /*  Custom name for the header. How does "Timmy's Meme Stash"? sound?             */
 define("PEC_SERVER_TITLE", "io20");              /*  Custom name for the tab.                                                      */
 define("PEC_SERVER_THEME", "obsidian");          /*  Themes aren't complete yet. Why not contribute some to the code!?             */
@@ -27,6 +27,7 @@ define("PEC_SERVER_IMAGE_ENABLED", false);       /*  Enable a server banner/logo
 define("PEC_SERVER_IMAGE", "serverimage.pngx");  /*  This is the header image and/or logo you want - NOT visible to visitors.      */
 define("PEC_SERVER_LOG_FILE", "logfile.txt");    /*  All accesses, downloads, and uploads are logged here                          */
 define("PEC_SERVER_LOG_ENABLE", "false");        /*  Enable logging to the logfile. Most don't need this feature.                  */
+define("PEC_ROOT_DIR", "files");        /*  Enable logging to the logfile. Most don't need this feature.                  */
 //many of these aren't used yet
 
 
@@ -173,7 +174,7 @@ span.swf
 }
 
 
- 
+
 
 
 span.bat, span.sh, span.sys
@@ -185,7 +186,7 @@ span.bat, span.sh, span.sys
 	padding: 0px 0px 0px 25px;
 }
 
- 
+
 
 span.folder
 {
@@ -215,7 +216,7 @@ span.iso, span.img, span.bin, span.cue
 }
 
 
- 
+
 
 
 span.png, span.jpeg, span.gif, span.jpg
@@ -265,9 +266,9 @@ span.mp3, span.wav, span.mid, span.fm, span.flac
 }
 
 
- 
- 
- 
+
+
+
 
 
 
@@ -308,7 +309,7 @@ EOF;
 function goBack() {
     window.history.back();
 }
-</script> 
+</script>
 </head>
 
 
@@ -325,14 +326,22 @@ function goBack() {
 
 
 <?php
-$mode = 1;
 $getdir = NULL;
+$mode = $_GET["mode"] ?? 'default';
 
-if( isset($_GET["mode"]) )
-{
-	if($_GET["mode"] == "upload") $mode=2;
-	if($_GET["mode"] == "finish_upload") $mode=3;
+if($_POST ?? NULL){
+    // echo "hi";
 }
+if($mode == "default") index();
+if($mode == "upload") upload();
+if($mode == "finish_upload") finish();
+
+echo "<div class='footer'><a class='ubutton' href=\"?mode=upload&udir={$getdir}\">Upload to here</a> | <a href=\"http://github.com/Tylemagne/IO20\">io20 v0.9 (alpha)</a> | <a href='http://p.yusukekamiyamane.com/'>Fugue Icons</a></div>";
+
+?>
+</body></html>
+
+<?
 
 function reduce_bytes($bytes)
 {
@@ -366,156 +375,175 @@ function reduce_bytes($bytes)
 }
 
 //sanitize GET dir. No dots, symbols, forward slashes, double slashes
-if($mode == 1)
-{
-	if(isset($_GET["dir"]))
-	{
-		$dir = getcwd()."\\".$_GET["dir"];
-		echo "<a class='back' onclick='goBack()'>&lt;&lt;Back </a><br>";
-		$getdir = $_GET["dir"]."\\";
-	}
-	else
-	{
-		$dir = getcwd();
-		$getdir = "";
-	}
+function index(){
+
+    $cwd = getcwd();
+    if(isset($_GET["dir"]))
+    {
+        $dir = $cwd."\\".$_GET["dir"];
+        echo "<a class='back' onclick='goBack()'>&lt;&lt;Back </a><br>";
+        $getdir = $_GET["dir"]."\\";
+    }
+    else
+    {
+        $dir = $cwd;
+        $getdir = "";
+    }
+
+    $sub = $_GET['dir'];
+    $sub = trim($sub, '/') .'/';
+
+    $dir = "$cwd/" . PEC_ROOT_DIR .'/'. $sub ?? '';
+    $relative = '/'.PEC_ROOT_DIR .'/'. $sub ?? '';
+    // ugly workaround for now, will fix later
+    $relative = rtrim($relative, '/'). '/';
+
+    // Sort in descending order
+    $dirs = array_filter(scandir($dir), function($tem) use($dir){
+        return is_dir("$dir$tem");
+    });
+
+    echo "<table>";
+
+    $had_folders = false;
+    // handle the folders
+
+    foreach($dirs as $key => $item)
+    {
+
+        if($item == "..") continue;
+        if($item == ".") continue;
+        if($item == "index.php") continue;
+        if($item == PEC_SERVER_IMAGE) continue;
+        if($item == PEC_SERVER_LOG_FILE) continue;
 
 
-	// Sort in descending order
-	$b = scandir($dir,2);
-	echo "<table>";
 
-	$had_folders = false;
-	for($x=0; $x < count($b); $x++) //folders
-	{
-		
+        $fos = NULL;
 
-		if($b[$x] == "..") continue;
-		if($b[$x] == ".") continue;
-		if($b[$x] == "index.php") continue;
-		if($b[$x] == PEC_SERVER_IMAGE) continue;
-		if($b[$x] == PEC_SERVER_LOG_FILE) continue;
-		
-		
-		if( is_dir( $getdir.$b[$x] ) )
-		{
-			$fos = NULL;
+        if(PEC_SHOW_FOLDER_SIZE_MODE == 1)
+        {
+            $fos = $cwd."\\".$getdir.$item; //NEED TO ENABLE COM IN PHP.INI FOR FOLDER SIZES ON WINDOWS
 
-			if(PEC_SHOW_FOLDER_SIZE_MODE == 1)
-			{
-				$fos = getcwd()."\\".$getdir.$b[$x]; //NEED TO ENABLE COM IN PHP.INI FOR FOLDER SIZES ON WINDOWS
+            if( !class_exists("COM") )
+            {
+                die ("COM is not enabled. Turn off PEC_SHOW_FOLDER_SIZE_MODE until you enable it. You need to add 'extension=php_com_dotnet.dll' to php.ini (do a control+f to find the extension declarations) and restart Apache to make this feature work.");
+            }
+            else
+            {
+                $folderchecker = new COM ( 'scripting.filesystemobject' );
 
-				if( !class_exists("COM") )
-				{
-					die ("COM is not enabled. Turn off PEC_SHOW_FOLDER_SIZE_MODE until you enable it. You need to add 'extension=php_com_dotnet.dll' to php.ini (do a control+f to find the extension declarations) and restart Apache to make this feature work.");
-				}
-				else
-				{
-					$folderchecker = new COM ( 'scripting.filesystemobject' );
+                if ( is_object ($folderchecker) )
+                {
+                    $ref = $folderchecker->getfolder ( $fos );
+                    $fos = reduce_bytes($ref->size);
+                    $folderchecker = NULL;
+                }
+                else
+                {
+                    $fos = "0 B";
+                }
+            }
 
-					if ( is_object ($folderchecker) )
-					{
-						$ref = $folderchecker->getfolder ( $fos );
-						$fos = reduce_bytes($ref->size);
-						$folderchecker = NULL;
-					}
-					else
-					{
-						$fos = "0 B";
-					}
-				}
+        }
 
-			}
 
-			
-			
-			echo "<tr>
-			<td colspan=1><a href='?dir=$getdir$b[$x]'><span class=folder></span>".$b[$x]."</a></td>
-			<td colspan=2>{$fos}</td>
-			</tr>";
 
-			if(!$had_folders) $had_folders = true;
-		}
+        echo "<tr>
+            <td colspan=1><a href='?dir=$sub$item'><span class=folder></span>".$item."</a></td>
+            <td colspan=2>{$fos}</td>
+            </tr>";
 
-		//echo "<br>";
-	}
+                    if(!$had_folders) $had_folders = true;
 
-	$had_files = false;
-	for($x=0; $x < count($b); $x++) //files
-	{
+                    //echo "<br>";
+    }
 
-		
+    $had_files = false;
 
-		if($b[$x] == "..") continue;
-		if($b[$x] == ".") continue;
-		if($b[$x] == "index.php") continue;
-		if($b[$x] == PEC_SERVER_IMAGE) continue;
-		if($b[$x] == PEC_SERVER_LOG_FILE) continue;
-		
-		
-		if(!	is_dir( $getdir.$b[$x] ) )
-		{
-			$exclass = pathinfo($b[$x]);
-			$exclass = $exclass["extension"];
-			//echo $exclass;
-			
-			$fs = filesize( $getdir.$b[$x] );
-			$fs = reduce_bytes($fs);
-			
-			echo "<tr><td><a href='{$getdir}{$b[$x]}'><span class='$exclass default'></span>".$b[$x]."</a></td> <td>{$fs}</td><td><a class='fdl' href='{$getdir}{$b[$x]}' download><img src=' data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAgpJREFUeNqMU81rE0EU/802u02bINTWj+LBgnopenH+AS+9Sa968VAQes3Zo39BjkYUKS6KCBYlCFJEsZWCOOjNg9qrtk2iyTaZzX7M+GbtbnZLBB+8fbvzfu8372uZ1hpXHuwhL4yxBhmeOxKEW81j3q6cTGzJPFQc44jwa0vzPAwB2waebPzAvyQh6He7KFcqBYfvK3ieQrVqIY6ioq/fp+f8iEAeHCCi6/IkQRBDygiOU0p8+eBwOCxmYMSApOfBLpczgsGASMssIwh9H/GRckv5D+PUUsKamKDgAPv7HSjlIAqCpE9KqfE9oA43yJt0PSaQqbnV6qDdbmNqaiZN+WMaRHhBZjUjoIBNOuQr1y/zb993obTCr66EZgy/ez744gynaePEXAXN1zuCxryZklmHjC6lWb+7ti1mTx3D158D7EoFaU9iz9fYafmoHK9i/eUXYXAGXyDISMKw/ujxB7F48Qw8ZzrThQun0XzxWRh/Pjgj6HU6SZ1pJs/dd+L8uTn0JqdxdmEWG0/fZzcbnMEXmtijZlFdKDkObMdxzXq/WXtVu3TjKt962DQ110ldSTtgJmL8Y8donEYty3KZZeHT/Wc1Oq5rpdxxIxwR0Bh17udJlmW0MLVDHcmYMfLlWzc5bS5CYqLfAMPUksr4rw3oTJEOGveKGdCNYv32Hfy3MCbS1z8CDADD9UVYgGn97QAAAABJRU5ErkJggg=='></a></td> </tr>";
-			if(!$had_files) $had_files = true;
-		}
-		//echo "<br>";
-	}
+    $files = array_filter(scandir($dir), function($tem) use($dir){
+        return is_file("$dir$tem");
+    });
 
-	echo "</table>";
+    foreach ($files as $key => $item) //files
+    {
 
-	if(!$had_files && !$had_folders){
-		echo "While not at all presidential, I must point out that this io20 directory had nothing in it and was forced to close. Sad!";
-	}
+        if($item == "..") continue;
+        if($item == ".") continue;
+        if($item == "index.php") continue;
+        if($item == PEC_SERVER_IMAGE) continue;
+        if($item == PEC_SERVER_LOG_FILE) continue;
+        if(strpos($item, ".php") != false) continue;
+
+
+        $exclass = pathinfo($dir.$item);
+        $exclass = $exclass["extension"];
+        //echo $exclass;
+
+        $fs = filesize( $dir.$item );
+        $fs = reduce_bytes($fs);
+
+
+        echo "<tr><td><a href='{$relative}{$item}' target='_blank'><span class='$exclass default'></span>$item
+            </a></td> <td>{$fs}</td><td><a class='fdl' href='{$relative}{$item}' download><img src=' data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAgpJREFUeNqMU81rE0EU/802u02bINTWj+LBgnopenH+AS+9Sa968VAQes3Zo39BjkYUKS6KCBYlCFJEsZWCOOjNg9qrtk2iyTaZzX7M+GbtbnZLBB+8fbvzfu8372uZ1hpXHuwhL4yxBhmeOxKEW81j3q6cTGzJPFQc44jwa0vzPAwB2waebPzAvyQh6He7KFcqBYfvK3ieQrVqIY6ioq/fp+f8iEAeHCCi6/IkQRBDygiOU0p8+eBwOCxmYMSApOfBLpczgsGASMssIwh9H/GRckv5D+PUUsKamKDgAPv7HSjlIAqCpE9KqfE9oA43yJt0PSaQqbnV6qDdbmNqaiZN+WMaRHhBZjUjoIBNOuQr1y/zb993obTCr66EZgy/ez744gynaePEXAXN1zuCxryZklmHjC6lWb+7ti1mTx3D158D7EoFaU9iz9fYafmoHK9i/eUXYXAGXyDISMKw/ujxB7F48Qw8ZzrThQun0XzxWRh/Pjgj6HU6SZ1pJs/dd+L8uTn0JqdxdmEWG0/fZzcbnMEXmtijZlFdKDkObMdxzXq/WXtVu3TjKt962DQ110ldSTtgJmL8Y8donEYty3KZZeHT/Wc1Oq5rpdxxIxwR0Bh17udJlmW0MLVDHcmYMfLlWzc5bS5CYqLfAMPUksr4rw3oTJEOGveKGdCNYv32Hfy3MCbS1z8CDADD9UVYgGn97QAAAABJRU5ErkJggg=='></a></td> </tr>";
+        if(!$had_files) $had_files = true;
+        //echo "<br>";
+    }
+
+    echo "</table>";
+
+    if(!$had_files && !$had_folders){
+        echo "While not at all presidential, I must point out that this io20 directory had nothing in it and was forced to close. Sad!";
+    }
+
+
 }
-else if ($mode == 2)
-{
 
-	$_udir = $_GET["udir"];
-	$_udir = str_replace('\\', '/', $_udir);
-	$uploadingto = $_udir;
-	if (!$_udir) $uploadingto = "home directory";
 
-	echo "Max size is 1.8GB due to unavoidable limitations in 32-bit Apache servers. Break your archives into parts if you need to upload bigger collections.<br><br>Uploading to $uploadingto ...";
+function upload(){
+    $_udir = $_GET["udir"];
+    $_udir = str_replace('\\', '/', $_udir);
+    $uploadingto = $_udir;
+    if (!$_udir) $uploadingto = "home directory";
 
-	echo "<form enctype=\"multipart/form-data\" action=\"index.php?mode=finish_upload&udir={$_udir}\" method=\"POST\">
-    <input type=\"file\" name=\"uploaded_file\"></input> <input type=\"submit\" value=\"Upload\"></input>
-    <input type=\"hidden\" name=\"MAX_FILE_SIZE\" value=\"10000000000\">
-	</form>";
+    echo "Max size is 1.8GB due to unavoidable limitations in 32-bit Apache servers. Break your archives into parts if you need to upload bigger collections.<br><br>Uploading to $uploadingto ...";
 
-	echo "<br><a class='' href=index.php>Home</a><br><br>";
+    echo "<form enctype=\"multipart/form-data\" action=\"index.php?mode=finish_upload&udir={$_udir}\" method=\"POST\">
+        <input type=\"file\" name=\"uploaded_file\"></input> <input type=\"submit\" value=\"Upload\"></input>
+        <input type=\"hidden\" name=\"MAX_FILE_SIZE\" value=\"10000000000\">
+        </form>";
+
+    echo "<br><a class='' href=index.php>Home</a><br><br>";
+
 }
-else if($mode == 3)
-{
-	$_udir = $_GET["udir"];
-	$_udir = str_replace('\\', '/', $_udir);
 
-	ini_set('display_errors',1);
-	error_reporting(E_ALL);
-	if(!empty($_FILES['uploaded_file']))
-  	{
-	    $path = $_udir; // ISOs/    uploads/
-	    $path = $path . basename( $_FILES['uploaded_file']['name']);
 
-	    if(move_uploaded_file($_FILES['uploaded_file']['tmp_name'], $path))
-	    {
-	      echo basename( "<span style='color:green;'>".$_FILES['uploaded_file']['name'])."</span> uploaded!";
-	    }
-	    else
-	    {
-	        echo "Not uploaded because of error #".$_FILES["file"]["error"];
-	    }
-  }
+function finish(){
+    $_udir = $_GET["udir"];
+    $_udir = str_replace('\\', '/', $_udir);
+
+    ini_set('display_errors',1);
+    error_reporting(E_ALL);
+
+    if(empty($_FILES['uploaded_file']))
+    {
+        return;
+    }
+
+    $path = PEC_ROOT_DIR .'/' . $_udir; // ISOs/    uploads/
+    $path = $path . basename( $_FILES['uploaded_file']['name']);
+
+    if(move_uploaded_file($_FILES['uploaded_file']['tmp_name'], $path))
+    {
+      echo basename( "<span style='color:green;'>".$_FILES['uploaded_file']['name'])."</span> uploaded!";
+    }
+    else
+    {
+        echo "Not uploaded because of error #".$_FILES["file"]["error"];
+    }
   echo "<br><a class='' href=index.php>Home</a><br><br>";
+
 }
 
 
-echo "<div class='footer'><a class='ubutton' href=\"?mode=upload&udir={$getdir}\">Upload to here</a> | <a href=\"http://github.com/Tylemagne/IO20\">io20 v0.9 (alpha)</a> | <a href='http://p.yusukekamiyamane.com/'>Fugue Icons</a></div>";
-?>
-</body></html>
+

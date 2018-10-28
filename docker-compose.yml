@@ -1,0 +1,10 @@
+version: "3"
+
+services:
+  php:
+    image: php:apache
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/var/www/html
+      - ./php.ini:/usr/local/etc/php/conf.d/env.ini
